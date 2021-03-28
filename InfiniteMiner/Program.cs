@@ -73,25 +73,15 @@ namespace IngameScript
 		bool IsPaused = false;
 		public void Main(string argument, UpdateType updateSource)
 		{
+			Echo(IsPaused ? "System paused" : "System working");
 			if (argument == "Pause")
 				IsPaused = true;
 			else if (argument == "Resume")
 				IsPaused = false;
 			if (IsPaused)
 				return;
-			//Check connector can connect now
-			bool isAllExtended = IsAllPistonExtended(Far_Top_Pistons);
-			bool isAllRetracted = IsAllPistonRetracted(Far_Top_Pistons);
-			bool isPistonMergeOn = Far_PistonEnd_Merge_Top.GetValueBool("OnOff");
-			bool isAnyDrillHasStone = IsAnyDrillHasStone(Far_Array_Drills);
-			if (isAllExtended && !isPistonMergeOn && Far_Right_Connector.Status == MyShipConnectorStatus.Connectable)
-			{
-				//If it can connect, connect it and turn on side merge block, and turn off top merge block
-				Far_Right_Connector.Connect();
-				Far_PistonEnd_Merge_Side.SetValueBool("OnOff", true);
-				Far_PistonEnd_Merge_Top.SetValueBool("OnOff", false);
-			}
-			else if (isAllExtended && !isPistonMergeOn && Far_Right_Connector.Status == MyShipConnectorStatus.Connected)
+			//While connector is connected, move stone while at it
+			if (Far_Right_Connector.Status == MyShipConnectorStatus.Connected)
 			{
 				//Move all stones out of drill
 				if (GetAnyCargo())
@@ -112,6 +102,22 @@ namespace IngameScript
 						}
 					}
 				}
+			}
+			//Check connector can connect now
+			bool isAllExtended = IsAllPistonExtended(Far_Top_Pistons);
+			bool isAllRetracted = IsAllPistonRetracted(Far_Top_Pistons);
+			bool isMidPush = IsPistonMidPush(Far_Top_Pistons);
+			bool isPistonMergeOn = Far_PistonEnd_Merge_Top.GetValueBool("OnOff");
+			bool isAnyDrillHasStone = IsAnyDrillHasStone(Far_Array_Drills);
+			Echo($"Currently all piston: {(isAllExtended ? "Extended" : "")}{(isAllRetracted ? "Retracted" : "")}");
+			//Assuming this already push to it fullest
+			if (isAllExtended && !isPistonMergeOn && Far_Right_Connector.Status == MyShipConnectorStatus.Connectable && !isMidPush)
+			{
+				//If it can connect, connect it and turn on side merge block, and turn off top merge block
+				Far_Right_Connector.Connect();
+				Far_PistonEnd_Merge_Side.SetValueBool("OnOff", true);
+				Far_PistonEnd_Merge_Top.SetValueBool("OnOff", false);
+				Echo("Connector connected, turn on side merge block, and turn on top merge block");
 			}
 			else if (!isAllExtended && isPistonMergeOn)
 			{
@@ -155,7 +161,15 @@ namespace IngameScript
 			{
 				//If top merge block is connected, then disable projector merge block
 				//Letting it push down
+				//Disable side merger, if it connected
 				Far_Projector_Merge.SetValueBool("OnOff", false);
+				Far_PistonEnd_Merge_Side.SetValueBool("OnOff", false);
+			}
+			//After it push down for a while
+			else if (isPistonMergeOn && isMidPush)
+			{
+				//Disconnect connector
+				Far_Right_Connector.Disconnect();
 			}
 		}
 
@@ -196,6 +210,21 @@ namespace IngameScript
 				}
 			}
 			return hasStone;
+		}
+
+		public bool IsPistonMidPush(List<IMyExtendedPistonBase> pistons)
+		{
+			bool IsMidPush = true;
+			foreach (var piston in pistons)
+			{
+				if (piston.CurrentPosition > 6f && piston.CurrentPosition < 7f)
+				{
+					//Yes
+				}
+				else
+					IsMidPush = false;
+			}
+			return IsMidPush;
 		}
 
 		public bool IsAllPistonExtended(List<IMyExtendedPistonBase> pistons)
